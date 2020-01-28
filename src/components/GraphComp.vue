@@ -224,11 +224,11 @@ export default class GraphComp extends Vue {
       this.events.push(new DoEvents());
     }
 
-    db.collection('balances').orderBy("update_at_epoch").get().then((query) => {
+    db.collection('balances').orderBy("date_at_epoch").get().then((query) => {
       let day = 1;
       query.forEach(function(doc) {
         let rec = doc.data();
-        let [,, tmp_day] = rec['update_at'].split('-');
+        let [,, tmp_day] = rec['date_at'].split('-');
         while(day !== parseInt(tmp_day, 10)) {
           self.weights.push(null);
           self.bodyfats.push(null);

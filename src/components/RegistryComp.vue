@@ -12,25 +12,34 @@
 
     <v-row>
       <v-col
-        cols="3"
+        cols="2"
       >
         <v-text-field label="Weight" v-model="weight_" clearable type="number" suffix="kg"></v-text-field>
       </v-col>
       <v-col
-        cols="3"
+        cols="2"
       >
         <v-text-field label="Body Fat" v-model="fat_" type="number" clearable suffix="%"></v-text-field>
       </v-col>
       <v-col
-        cols="3"
+        cols="2"
       >
         <v-text-field label="Jump rope" v-model="jumprope_" type="number" clearable suffix="min"></v-text-field>
       </v-col>
       <v-col
-        cols="3"
+        cols="1"
       >
         <v-btn-toggle v-model="doabs_" color="#00c853" rounded>
-          <v-btn x-large>Do abs
+          <v-btn x-large>abs
+            <v-icon>mdi-check-circle-outline</v-icon>
+          </v-btn>
+        </v-btn-toggle>
+      </v-col>
+      <v-col
+        cols="1"
+      >
+        <v-btn-toggle v-model="konami_" color="#00c853" rounded>
+          <v-btn x-large>Konami
             <v-icon>mdi-check-circle-outline</v-icon>
           </v-btn>
         </v-btn-toggle>
@@ -51,7 +60,7 @@
     </v-snackbar>
     <v-snackbar
       v-model="show_snackbar_error"
-      color="success"
+      color="error"
       top
       :timeout="snackbar_to"
       > {{ error_str }}
@@ -63,16 +72,17 @@
 <script src="https://www.gstatic.com/firebasejs/7.2.3/firebase-firestore.js"></script>
 
 <script lang="ts">
-import { Component, Prop, Vue } from 'vue-property-decorator';
+import { Component, Prop, Vue, Watch } from 'vue-property-decorator';
 import db from '../firebaseConf'
 
 @Component
 export default class RegistryComp extends Vue {
   private date_: string = "1970-01-01";
-  private weight_: number = 80;
-  private fat_: number = 25;
-  private jumprope_: number = 5;
-  private doabs_: number = 0;
+  private weight_: number = -1;
+  private fat_: number = -1;
+  private jumprope_: number = 0;
+  private doabs_: number = 1;
+  private konami_: number = 1;
   public show_snackbar_success: boolean = false;
   private show_snackbar_error: boolean = false;
   private snackbar_sts: string = "success";
@@ -85,43 +95,93 @@ export default class RegistryComp extends Vue {
 
   private created() {
     this.date_ = this.getSelectedDate();
+    this.update_form();
   }
 
-  getSelectedDateEpoch(): number {
+  private getSelectedDateEpoch(): number {
     let dt = new Date();
     dt.setTime(dt.getTime() + 1000 * 60 * 60 * 9);
     return dt.getTime() / 1000;
   }
 
-  getSelectedDate(): string {
+  private getSelectedDate(): string {
     let dt = new Date();
     dt.setTime(dt.getTime() + 1000 * 60 * 60 * 9);
     return dt.toISOString().substr(0, 10);
   }
 
-  registry(): void {
+  private update_form(): void {
     let self = this;
-    this.error_str= "";
-
-    db.collection('balances').add({
-      update_at: this.date_,
-      update_at_epoch: this.getSelectedDateEpoch(),
-      weight: Number(this.weight_),
-      bodyfat: Number(this.fat_),
-      jumprope: Number(this.jumprope_),
-      doabs: this.doabs_ === 0 ? 1 : 0,
-    })
-    .then(function(success) {
-      self.show_snackbar_success = true;
-    })
-    .then(function(error) {
-      self.show_snackbar_error = true;
-      self.error_str = String(error);
+    self.weight_ = -1;
+    self.fat_ = -1;
+    self.jumprope_ = 0;
+    self.doabs_ = 1;
+    self.konami_ = 1;
+    db.collection('balances').where("date_at", "==", this.date_).get().then((query) => {
+      console.log(query);
+      query.forEach(function(doc) {
+        let rec = doc.data();
+        self.weight_ = rec['weight'];
+        self.fat_ = rec['bodyfat'];
+        self.jumprope_ = rec['jumprope'];
+        self.doabs_ = rec['doabs'] === 0 ? 1 : 0;
+        self.konami_ = rec['konami'] === 0 ? 1 : 0;
+      });
     });
   }
 
-  cancel(): void {
+  private registry(): void {
+    let self = this;
+    this.error_str= "";
+
+    db.collection('balances').where("date_at", "==", this.date_).get().then((query) => {
+      if(0 === query.size) {
+        db.collection('balances').add({
+          date_at: self.date_,
+          date_at_epoch: self.getSelectedDateEpoch(),
+          weight: Number(self.weight_),
+          bodyfat: Number(self.fat_),
+          jumprope: Number(self.jumprope_),
+          doabs: self.doabs_ === 0 ? 1 : 0,
+          konami: self.konami_ === 0 ? 1 : 0,
+        })
+        .then(function(success) {
+          self.show_snackbar_success = true;
+        })
+        .catch(function(error) {
+          self.error_str = String(error);
+          self.show_snackbar_error = true;
+        });
+
+      } else {
+        console.log(query.docs[0].id);
+        db.collection('balances').doc(query.docs[0].id).set({
+          date_at: self.date_,
+          date_at_epoch: self.getSelectedDateEpoch(),
+          weight: Number(self.weight_),
+          bodyfat: Number(self.fat_),
+          jumprope: Number(self.jumprope_),
+          doabs: self.doabs_ === 0 ? 1 : 0,
+          konami: self.konami_ === 0 ? 1 : 0,
+        })
+        .then(function(success) {
+          self.show_snackbar_success = true;
+        })
+        .catch(function(error) {
+          self.error_str = String(error);
+          self.show_snackbar_error = true;
+        });
+      }
+    });
+  }
+
+  private cancel(): void {
     alert("cancel");
+  }
+
+  @Watch('date_')
+  private pickerDate(): void {
+    this.update_form();
   }
 }
 </script>
